@@ -270,3 +270,47 @@ footer {
 .boton-secundario:hover {
   background: #d4e2ef;
 }
+
+
+
+/* PANEL DE RECONOCIMIENTO OCR */
+
+.panel-ocr {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f0f6fc;
+  border: 1px solid #cbddeb;
+  border-radius: 10px;
+}
+
+.panel-ocr h3 {
+  color: #14385b;
+  margin-top: 0;
+  font-size: 17px;
+}
+
+.panel-ocr label {
+  display: block;
+  margin: 12px 0 8px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+#estado-ocr {
+  color: #45647f;
+  font-size: 13px;
+}
+
+#texto-ocr {
+  width: 100%;
+  min-height: 170px;
+  padding: 12px;
+  border: 1px solid #c5d5e5;
+  border-radius: 8px;
+  background: white;
+  color: #173451;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}

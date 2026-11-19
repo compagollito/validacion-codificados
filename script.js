@@ -77,6 +77,14 @@ document.getElementById("btn-historial").addEventListener(
 
 // CAMARA
 async function iniciarCamara() {
+
+  generacionOCR++;
+procesandoOCR = false;
+
+document.getElementById("panel-ocr").classList.add("oculto");
+document.getElementById("texto-ocr").value = "";
+document.getElementById("estado-ocr").textContent =
+  "Esperando fotografía...";
   detenerCamara();
 
   const sesion = sesionCamara;
@@ -187,8 +195,8 @@ btnCapturar.addEventListener("click", () => {
 
   mensajeCamara.textContent = "Fotografía capturada.";
 
-  // La validación se ejecuta automáticamente.
-  validarAleatoriamente();
+  // La validación se ejecuta con ocr
+  reconocerTextoOCR();
 });
 
 // NUEVA CAPTURA
@@ -324,6 +332,115 @@ function mostrarHistorial() {
     contenedor.appendChild(tarjeta);
   });
 }
+
+
+/* ==========================================
+   RECONOCIMIENTO OCR CON TESSERACT.JS
+========================================== */
+
+let trabajadorOCR = null;
+let procesandoOCR = false;
+let generacionOCR = 0;
+
+// Inicializar Tesseract una sola vez
+async function obtenerTrabajadorOCR() {
+  if (!trabajadorOCR) {
+    trabajadorOCR = Tesseract.createWorker("eng")
+      .catch(error => {
+        trabajadorOCR = null;
+        throw error;
+      });
+  }
+
+  return await trabajadorOCR;
+}
+
+// Procesar fotografía capturada
+async function reconocerTextoOCR() {
+  if (!fotoActual || procesandoOCR) return;
+
+  const generacion = ++generacionOCR;
+  const lineaCapturada = lineaActual;
+  const imagenCapturada = fotoActual;
+
+  procesandoOCR = true;
+
+  const panel = document.getElementById("panel-ocr");
+  const estado = document.getElementById("estado-ocr");
+  const texto = document.getElementById("texto-ocr");
+
+  panel.classList.remove("oculto");
+  texto.value = "";
+  estado.textContent = "Cargando motor OCR...";
+
+  btnRepetir.disabled = true;
+
+  try {
+    if (typeof Tesseract === "undefined") {
+      throw new Error("No se pudo cargar Tesseract.js.");
+    }
+
+    const trabajador = await obtenerTrabajadorOCR();
+
+    if (generacion !== generacionOCR) return;
+
+    estado.textContent = "Reconociendo caracteres...";
+
+    const respuesta = await trabajador.recognize(imagenCapturada);
+
+    if (generacion !== generacionOCR) return;
+
+    const textoDetectado = respuesta.data.text.trim();
+
+    texto.value = textoDetectado;
+
+    if (textoDetectado) {
+      estado.textContent = "Reconocimiento finalizado.";
+
+      guardarLecturaOCR({
+        linea: lineaCapturada,
+        foto: imagenCapturada,
+        texto: textoDetectado,
+        estado: "LECTURA_OCR"
+      });
+    } else {
+      estado.textContent =
+        "No se detectó texto. Intenta tomar otra fotografía.";
+    }
+
+  } catch (error) {
+    if (generacion === generacionOCR) {
+      console.error("Error OCR:", error);
+      estado.textContent =
+        "Error al procesar la imagen. Revisa la conexión y la consola.";
+    }
+  } finally {
+    if (generacion === generacionOCR) {
+      procesandoOCR = false;
+      btnRepetir.disabled = false;
+    }
+  }
+}
+
+// Guardar lectura de prueba en el historial existente
+function guardarLecturaOCR(datos) {
+  const fecha = new Date();
+
+  const registro = {
+    id: Date.now(),
+    linea: datos.linea,
+    estado: datos.estado,
+    titulo: "Lectura OCR realizada",
+    observacion: datos.texto,
+    fecha: fecha.toLocaleDateString("es-MX"),
+    hora: fecha.toLocaleTimeString("es-MX"),
+    foto: datos.foto
+  };
+
+  guardarRegistro(registro);
+}
+
+
 
 // INICIO
 mostrarPantalla("pantalla-inicio");
