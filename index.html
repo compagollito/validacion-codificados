@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validación de codificados</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+    <div class="app">
+        <header class="encabezado">
+            <h1>Validación de codificados</h1>
+            <p>Prototipo demostrativo · Unidad y corrugado</p>
+        </header>
+
+        <main>
+            <!-- Pantalla principal -->
+            <section id="pantalla-inicio" class="pantalla activa">
+                <div class="tarjeta">
+                    <h2>Selecciona una línea</h2>
+                    <div class="lista-lineas">
+                        <button data-linea="400">Línea 400</button>
+                        <button data-linea="500">Línea 500</button>
+                        <button data-linea="540">Línea 540</button>
+                        <button data-linea="520">Línea 520</button>
+                        <button data-linea="300">Línea 300</button>
+                        <button data-linea="800">Línea 800</button>
+                    </div>
+                    <p class="nota">Selecciona la línea que deseas inspeccionar.</p>
+                </div>
+            </section>
+
+            <!-- Opciones de línea -->
+            <section id="pantalla-opciones" class="pantalla">
+                <div class="tarjeta">
+                    <button class="volver" data-destino="pantalla-inicio">
+                        ← Volver
+                    </button>
+                    <h2 id="titulo-linea">Línea</h2>
+                    <div class="acciones">
+                        <button id="btn-validar">Validar producto</button>
+                        <button id="btn-historial">Ver historial</button>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Captura y validación -->
+            <section id="pantalla-validar" class="pantalla">
+                <div class="tarjeta">
+                    <button class="volver" data-destino="pantalla-opciones">
+                        ← Volver
+                    </button>
+
+                    <h2 id="titulo-validar">Validar producto</h2>
+
+                    <p>
+                        Coloca la unidad y el corrugado dentro del encuadre
+                        para capturar sus codificados.
+                    </p>
+
+                    <div class="contenedor-camara">
+                        <video id="camara" autoplay playsinline muted></video>
+                        <canvas id="canvas-foto" class="oculto"></canvas>
+                        <img id="vista-foto" class="vista-foto oculto" alt="Fotografía capturada">
+                    </div>
+
+                    <p id="mensaje-camara" class="nota" aria-live="polite">
+                        Preparando cámara...
+                    </p>
+
+                    <button id="btn-capturar" class="boton-principal" disabled>
+                        Capturar fotografía
+                    </button>
+
+                    <button id="btn-repetir" class="boton-secundario oculto">
+                        Tomar otra fotografía
+                    </button>
+
+                    <div id="resultado" class="resultado oculto" aria-live="polite">
+                        <h3 id="resultado-titulo"></h3>
+                        <p id="resultado-observacion"></p>
+                        <p id="resultado-fecha"></p>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Historial -->
+            <section id="pantalla-historial" class="pantalla">
+                <div class="tarjeta">
+                    <button class="volver" data-destino="pantalla-opciones">
+                        ← Volver
+                    </button>
+                    <h2 id="titulo-historial">Historial</h2>
+                    <div id="lista-historial"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            Prototipo sin conexión a IA ni SharePoint.
+            No utilizar para liberar o rechazar producción.
+        </footer>
+    </div>
+</body>
+
+</html>
