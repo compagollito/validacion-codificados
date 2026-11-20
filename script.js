@@ -1,309 +1,783 @@
 
 "use strict";
 
-// CONFIGURACION
+// ========================================
+// CONFIGURACION GENERAL
+// ========================================
+
 const LINEAS = ["400", "500", "540", "520", "300", "800"];
-const CLAVE_HISTORIAL = "historial_codificados_v1";
-const LIMITE_REGISTROS = 25;
+const STORAGE = "codificados_demo_dos_fotos_v3";
+
+const $ = id => document.getElementById(id);
 
 let lineaActual = null;
-let fotoActual = null;
+let etapa = "unidad";
+
 let streamCamara = null;
-let historial = cargarHistorial();
+let timerCalidad = null;
 let sesionCamara = 0;
+let generacionOCR = 0;
 
-const video = document.getElementById("camara");
-const vistaFoto = document.getElementById("vista-foto");
-const canvas = document.getElementById("canvas-foto");
-const mensajeCamara = document.getElementById("mensaje-camara");
-const btnCapturar = document.getElementById("btn-capturar");
-const btnRepetir = document.getElementById("btn-repetir");
-const resultadoBox = document.getElementById("resultado");
+let workerPromise = null;
+let procesando = false;
 
+let capturas = {
+  unidad: null,
+  corrugado: null
+};
+
+let lecturas = {
+  unidad: "",
+  corrugado: ""
+};
+
+let muestraAnterior = null;
+
+// ========================================
 // NAVEGACION
+// ========================================
+
 function mostrarPantalla(id) {
   document.querySelectorAll(".pantalla").forEach(p => {
-    p.classList.remove("activa");
+    p.classList.toggle("activa", p.id === id);
   });
 
-  document.getElementById(id).classList.add("activa");
   window.scrollTo(0, 0);
 }
 
-function seleccionarLinea(linea) {
-  if (!LINEAS.includes(linea)) return;
-
-  lineaActual = linea;
-
-  document.getElementById("titulo-linea").textContent =
-    "Línea " + linea;
-
-  document.getElementById("titulo-validar").textContent =
-    "Validar producto · Línea " + linea;
-
-  document.getElementById("titulo-historial").textContent =
-    "Historial · Línea " + linea;
-
-  mostrarPantalla("pantalla-opciones");
-}
-
-document.querySelectorAll("[data-linea]").forEach(boton => {
-  boton.addEventListener("click", () => {
-    seleccionarLinea(boton.dataset.linea);
-  });
-});
-
-document.querySelectorAll("[data-destino]").forEach(boton => {
-  boton.addEventListener("click", () => {
-    detenerCamara();
-    mostrarPantalla(boton.dataset.destino);
-  });
-});
-
-// OPCIONES
-document.getElementById("btn-validar").addEventListener(
-  "click", async () => {
-    mostrarPantalla("pantalla-validar");
-    await iniciarCamara();
-  }
-);
-
-document.getElementById("btn-historial").addEventListener(
-  "click", () => {
-    mostrarHistorial();
-    mostrarPantalla("pantalla-historial");
-  }
-);
-
-// CAMARA
-async function iniciarCamara() {
-
-  generacionOCR++;
-procesandoOCR = false;
-
-document.getElementById("panel-ocr").classList.add("oculto");
-document.getElementById("texto-ocr").value = "";
-document.getElementById("estado-ocr").textContent =
-  "Esperando fotografía...";
+function seleccionarLinea(numero) {
   detenerCamara();
+  cancelarLectura();
 
-  const sesion = sesionCamara;
+  lineaActual = numero;
 
-  
-  fotoActual = null;
+  $("linea-titulo").textContent = "Línea " + numero;
 
-  // Restablecer la interfaz de captura
-  vistaFoto.classList.add("oculto");
-  video.classList.remove("oculto");
+  $("historial-titulo").textContent =
+    "Historial · Línea " + numero;
 
-  resultadoBox.className = "resultado oculto";
-
-  // Mostrar nuevamente el botón de captura
-  btnCapturar.classList.remove("oculto");
-
-  // Ocultar el botón de repetir fotografía
-  btnRepetir.classList.add("oculto");
-
-  // Desactivar captura hasta que la cámara esté lista
-  btnCapturar.disabled = true;
-
-
-  mensajeCamara.textContent = "Preparando cámara...";
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    mensajeCamara.textContent =
-      "La cámara requiere un navegador compatible y HTTPS o localhost.";
-    return;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
-    });
-
-    // Evitar activar una cámara después de salir de la pantalla.
-    if (sesion !== sesionCamara) {
-      stream.getTracks().forEach(track => track.stop());
-      return;
-    }
-
-    streamCamara = stream;
-    video.srcObject = stream;
-    await video.play();
-
-    if (sesion !== sesionCamara) return;
-
-    mensajeCamara.textContent =
-      "Coloca la unidad y el corrugado dentro del encuadre.";
-
-    btnCapturar.disabled = false;
-
-  } catch (error) {
-    if (sesion !== sesionCamara) return;
-
-    detenerCamara();
-
-    console.error("Error de cámara:", error);
-
-    mensajeCamara.textContent =
-      "No fue posible abrir la cámara. Revisa los permisos del navegador.";
-  }
+  mostrarPantalla("opciones");
 }
+
+// Crear botones de las seis líneas
+LINEAS.forEach(numero => {
+  const boton = document.createElement("button");
+
+  boton.textContent = "Línea " + numero;
+
+  boton.addEventListener("click", () => {
+    seleccionarLinea(numero);
+  });
+
+  $("lineas").appendChild(boton);
+});
+
+// Botones volver
+document.querySelectorAll("[data-volver]").forEach(boton => {
+  boton.addEventListener("click", () => {
+    detenerCamara();
+    cancelarLectura();
+    mostrarPantalla(boton.dataset.volver);
+  });
+});
+
+$("ir-validar").addEventListener("click", () => {
+  limpiarInspeccion();
+  abrirEtapa("unidad");
+});
+
+$("ir-historial").addEventListener("click", () => {
+  detenerCamara();
+  mostrarHistorial();
+  mostrarPantalla("historial");
+});
+
+// ========================================
+// LIMPIAR INSPECCION
+// ========================================
+
+function limpiarInspeccion() {
+  capturas = {
+    unidad: null,
+    corrugado: null
+  };
+
+  lecturas = {
+    unidad: "",
+    corrugado: ""
+  };
+}
+
+function cancelarLectura() {
+  generacionOCR++;
+  procesando = false;
+}
+
+// ========================================
+// CONTROL DE CAMARA
+// ========================================
 
 function detenerCamara() {
   sesionCamara++;
 
+  if (timerCalidad) {
+    clearInterval(timerCalidad);
+    timerCalidad = null;
+  }
+
   if (streamCamara) {
-    streamCamara.getTracks().forEach(track => track.stop());
+    streamCamara.getTracks().forEach(track => {
+      track.stop();
+    });
+
     streamCamara = null;
   }
 
+  const video = $("camara");
+
   video.pause();
   video.srcObject = null;
-  btnCapturar.disabled = true;
+
+  $("capturar").disabled = true;
 }
 
-// CAPTURA
-btnCapturar.addEventListener("click", () => {
-  if (!streamCamara || video.readyState < 2) {
-    alert("La cámara todavía no está lista.");
+// ========================================
+// ABRIR ETAPA
+// ========================================
+
+async function abrirEtapa(tipo) {
+  detenerCamara();
+  cancelarLectura();
+
+  etapa = tipo;
+  muestraAnterior = null;
+
+  const esUnidad = tipo === "unidad";
+
+  $("etapa-titulo").textContent = esUnidad
+    ? "Fotografía 1 de 2 · Unidad"
+    : "Fotografía 2 de 2 · Corrugado";
+
+  $("etapa-ayuda").textContent = esUnidad
+    ? "Coloca el codificado de la unidad dentro del recuadro."
+    : "Coloca el codificado del corrugado dentro del recuadro.";
+
+  // Restablecer interfaz
+  $("foto-previa").classList.add("oculto");
+  $("camara").classList.remove("oculto");
+
+  $("panel-ocr").classList.add("oculto");
+  $("recorte-ocr").removeAttribute("src");
+  $("foto-previa").removeAttribute("src");
+  $("repetir").classList.add("oculto");
+  $("siguiente").classList.add("oculto");
+  $("ver-resumen").classList.add("oculto");
+
+  $("capturar").classList.remove("oculto");
+  $("capturar").disabled = true;
+
+  $("luz").textContent = "Luz: analizando...";
+  $("nitidez").textContent = "Nitidez: analizando...";
+  $("estabilidad").textContent = "Estabilidad: analizando...";
+
+  $("mensaje-camara").textContent =
+    "Preparando cámara...";
+
+  mostrarPantalla("validar");
+
+  const sesion = sesionCamara;
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $("mensaje-camara").textContent =
+      "La cámara requiere HTTPS o localhost.";
     return;
   }
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const contexto = canvas.getContext("2d");
-  contexto.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  // Fotografía de demostración.
-  fotoActual = canvas.toDataURL("image/jpeg", 0.8);
-
-  vistaFoto.src = fotoActual;
-  vistaFoto.classList.remove("oculto");
-  video.classList.add("oculto");
-
-  detenerCamara();
-
-  btnCapturar.classList.add("oculto");
-  btnRepetir.classList.remove("oculto");
-
-  mensajeCamara.textContent = "Fotografía capturada.";
-
-  // La validación se ejecuta con ocr
-  reconocerTextoOCR();
-});
-
-// NUEVA CAPTURA
-btnRepetir.addEventListener("click", async () => {
-  btnCapturar.classList.remove("oculto");
-  await iniciarCamara();
-});
-
-// TRES RESULTADOS SIMULADOS
-const RESPUESTAS = [
-  {
-    estado: "CORRECTO",
-    titulo: "Codificado correcto",
-    observacion: "Validación simulada satisfactoria.",
-    clase: "correcto"
-  },
-  {
-    estado: "INCORRECTO",
-    titulo: "Codificado incorrecto",
-    observacion: "Se detectó una inconsistencia simulada.",
-    clase: "incorrecto"
-  },
-  {
-    estado: "NO_RECONOCIDA",
-    titulo: "Fotografía no reconocida",
-    observacion: "No fue posible reconocer la fotografía. Capture de nuevo.",
-    clase: "no-reconocida"
-  }
-];
-
-function validarAleatoriamente() {
-  // Selección uniforme entre los tres resultados.
-  const indice = Math.floor(Math.random() * RESPUESTAS.length);
-  const respuesta = RESPUESTAS[indice];
-
-  const fecha = new Date();
-
-  const registro = {
-    id: Date.now(),
-    linea: lineaActual,
-    estado: respuesta.estado,
-    titulo: respuesta.titulo,
-    observacion: respuesta.observacion,
-    fecha: fecha.toLocaleDateString("es-MX"),
-    hora: fecha.toLocaleTimeString("es-MX"),
-    foto: fotoActual
-  };
-
-  mostrarResultado(registro, respuesta.clase);
-  guardarRegistro(registro);
-}
-
-// MOSTRAR RESULTADO
-function mostrarResultado(registro, clase) {
-  resultadoBox.className = "resultado " + clase;
-
-  document.getElementById("resultado-titulo").textContent =
-    registro.titulo;
-
-  document.getElementById("resultado-observacion").textContent =
-    registro.observacion;
-
-  document.getElementById("resultado-fecha").textContent =
-    registro.fecha + " · " + registro.hora;
-}
-
-// HISTORIAL
-function cargarHistorial() {
   try {
-    const datos = JSON.parse(
-      localStorage.getItem(CLAVE_HISTORIAL) || "[]"
-    );
+    let nuevoStream;
 
-    return Array.isArray(datos) ? datos : [];
-  } catch {
-    return [];
-  }
-}
+    // Preferir cámara trasera
+    try {
+      nuevoStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+    } catch (error) {
+      if (error.name !== "OverconstrainedError") {
+        throw error;
+      }
 
-function guardarRegistro(registro) {
-  historial.unshift(registro);
-  historial = historial.slice(0, LIMITE_REGISTROS);
+      nuevoStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true
+      });
+    }
 
-  try {
-    localStorage.setItem(
-      CLAVE_HISTORIAL,
-      JSON.stringify(historial)
-    );
+    // Evitar activar cámara si se abandonó la pantalla
+    if (sesion !== sesionCamara) {
+      nuevoStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    streamCamara = nuevoStream;
+
+    const video = $("camara");
+    video.srcObject = nuevoStream;
+
+    await video.play();
+
+    if (sesion !== sesionCamara) return;
+
+    $("capturar").disabled = false;
+
+    $("mensaje-camara").textContent =
+      "Encuadra el codificado y mantén estable el celular.";
+
+    // Analizar imagen aproximadamente cada 650 ms
+    timerCalidad = setInterval(analizarCalidad, 650);
+
   } catch (error) {
-    alert(
-      "Se mostró el resultado, pero no fue posible guardar el historial."
-    );
+    if (sesion !== sesionCamara) return;
+
+    console.error("Error de cámara:", error);
+
+    $("mensaje-camara").textContent =
+      "No se pudo abrir la cámara. Revisa los permisos.";
   }
 }
 
-function mostrarHistorial() {
-  const contenedor = document.getElementById("lista-historial");
-  contenedor.replaceChildren();
+// ========================================
+// ANALISIS DE CALIDAD EN TIEMPO REAL
+// ========================================
 
-  const registros = historial.filter(
-    registro => registro.linea === lineaActual
+function analizarCalidad() {
+  const video = $("camara");
+
+  if (!streamCamara || video.readyState < 2) return;
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = 160;
+  canvas.height = 120;
+
+  const ctx = canvas.getContext("2d", {
+    willReadFrequently: true
+  });
+
+  ctx.drawImage(video, 0, 0, 160, 120);
+
+  const pixeles = ctx.getImageData(
+    0, 0, 160, 120
+  ).data;
+
+  const grises = new Float32Array(160 * 120);
+
+  let brilloTotal = 0;
+  let saturados = 0;
+
+  // Convertir imagen a escala de grises
+  for (let i = 0, j = 0; i < pixeles.length; i += 4, j++) {
+    const gris =
+      0.299 * pixeles[i] +
+      0.587 * pixeles[i + 1] +
+      0.114 * pixeles[i + 2];
+
+    grises[j] = gris;
+    brilloTotal += gris;
+
+    if (gris > 245) saturados++;
+  }
+
+  const brillo = brilloTotal / grises.length;
+  const porcentajeSaturado = saturados / grises.length;
+
+  // ILUMINACION
+  if (brillo < 65) {
+    $("luz").textContent =
+      "⚠️ Poca luz. Mejora la iluminación.";
+  } else if (brillo > 215 || porcentajeSaturado > 0.25) {
+    $("luz").textContent =
+      "⚠️ Exceso de luz. Evita los reflejos.";
+  } else {
+    $("luz").textContent =
+      "✓ Iluminación aceptable (estimación).";
+  }
+
+  // NITIDEZ: varianza del Laplaciano
+  let suma = 0;
+  let sumaCuadrados = 0;
+  let cantidad = 0;
+
+  for (let y = 1; y < 119; y += 2) {
+    for (let x = 1; x < 159; x += 2) {
+      const k = y * 160 + x;
+
+      const laplaciano =
+        4 * grises[k] -
+        grises[k - 1] -
+        grises[k + 1] -
+        grises[k - 160] -
+        grises[k + 160];
+
+      suma += laplaciano;
+      sumaCuadrados += laplaciano * laplaciano;
+      cantidad++;
+    }
+  }
+
+  const varianza =
+    sumaCuadrados / cantidad -
+    Math.pow(suma / cantidad, 2);
+
+  if (varianza < 110) {
+    $("nitidez").textContent =
+      "⚠️ Posible desenfoque. Ajusta el enfoque.";
+  } else {
+    $("nitidez").textContent =
+      "✓ Nitidez aceptable (estimación).";
+  }
+
+  // ESTABILIDAD: diferencia entre muestras
+  const muestra = [];
+
+  for (let y = 8; y < 120; y += 16) {
+    for (let x = 8; x < 160; x += 16) {
+      muestra.push(grises[y * 160 + x]);
+    }
+  }
+
+  if (muestraAnterior) {
+    let diferencia = 0;
+
+    for (let i = 0; i < muestra.length; i++) {
+      diferencia += Math.abs(
+        muestra[i] - muestraAnterior[i]
+      );
+    }
+
+    diferencia /= muestra.length;
+
+    $("estabilidad").textContent = diferencia > 18
+      ? "⚠️ Posible movimiento. Mantén estable el celular."
+      : "✓ Estabilidad aceptable (estimación).";
+  }
+
+  muestraAnterior = muestra;
+}
+
+
+
+/* ==========================================
+   RECORTE AUTOMATICO Y PREPROCESAMIENTO
+========================================== */
+
+// Recorta exactamente la zona visible del recuadro.
+// Compatible con object-fit: contain y object-fit: cover.
+function recortarCodificado(video) {
+  const contenedor = document.getElementById("contenedor-camara");
+  const marco = document.getElementById("marco-codificado");
+
+  const cajaVideo = video.getBoundingClientRect();
+  const cajaMarco = marco.getBoundingClientRect();
+
+  const anchoOriginal = video.videoWidth;
+  const altoOriginal = video.videoHeight;
+
+  if (!anchoOriginal || !altoOriginal) {
+    throw new Error("La cámara no tiene dimensiones válidas.");
+  }
+
+  const estilo = getComputedStyle(video);
+  const ajuste = estilo.objectFit;
+
+  const escala = ajuste === "cover"
+    ? Math.max(
+        cajaVideo.width / anchoOriginal,
+        cajaVideo.height / altoOriginal
+      )
+    : Math.min(
+        cajaVideo.width / anchoOriginal,
+        cajaVideo.height / altoOriginal
+      );
+
+  const anchoVisible = anchoOriginal * escala;
+  const altoVisible = altoOriginal * escala;
+
+  // Posición de la imagen dentro del elemento video.
+  // Nuestro CSS utiliza el centrado predeterminado.
+  const desplazamientoX =
+    (cajaVideo.width - anchoVisible) / 2;
+
+  const desplazamientoY =
+    (cajaVideo.height - altoVisible) / 2;
+
+  const izquierdaMarco = cajaMarco.left - cajaVideo.left;
+  const arribaMarco = cajaMarco.top - cajaVideo.top;
+
+  const x1 = Math.max(
+    0,
+    (izquierdaMarco - desplazamientoX) / escala
   );
 
-  if (registros.length === 0) {
-    const mensaje = document.createElement("p");
-    mensaje.textContent = "Todavía no hay registros para esta línea.";
-    contenedor.appendChild(mensaje);
+  const y1 = Math.max(
+    0,
+    (arribaMarco - desplazamientoY) / escala
+  );
+
+  const x2 = Math.min(
+    anchoOriginal,
+    (izquierdaMarco + cajaMarco.width - desplazamientoX) / escala
+  );
+
+  const y2 = Math.min(
+    altoOriginal,
+    (arribaMarco + cajaMarco.height - desplazamientoY) / escala
+  );
+
+  const x = Math.floor(x1);
+  const y = Math.floor(y1);
+
+  const ancho = Math.ceil(x2) - x;
+  const alto = Math.ceil(y2) - y;
+
+  if (ancho < 30 || alto < 20) {
+    throw new Error(
+      "El recuadro no coincide con el área visible de la cámara."
+    );
+  }
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = ancho;
+  canvas.height = alto;
+
+  const contexto = canvas.getContext("2d");
+
+  contexto.drawImage(
+    video,
+    x, y, ancho, alto,
+    0, 0, ancho, alto
+  );
+
+  return canvas;
+}
+
+// Amplía y mejora el contraste del recorte.
+function prepararRecorteOCR(canvasOriginal) {
+  const escala = Math.min(
+    3,
+    2400 / Math.max(
+      canvasOriginal.width,
+      canvasOriginal.height
+    )
+  );
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = Math.max(
+    1,
+    Math.round(canvasOriginal.width * escala)
+  );
+
+  canvas.height = Math.max(
+    1,
+    Math.round(canvasOriginal.height * escala)
+  );
+
+  const contexto = canvas.getContext("2d", {
+    willReadFrequently: true
+  });
+
+  contexto.imageSmoothingEnabled = true;
+  contexto.imageSmoothingQuality = "high";
+
+  contexto.drawImage(
+    canvasOriginal,
+    0, 0,
+    canvas.width,
+    canvas.height
+  );
+
+  const imagen = contexto.getImageData(
+    0, 0,
+    canvas.width,
+    canvas.height
+  );
+
+  const datos = imagen.data;
+
+  // Escala de grises y contraste moderado.
+  const contraste = 1.45;
+
+  for (let i = 0; i < datos.length; i += 4) {
+    const gris =
+      0.299 * datos[i] +
+      0.587 * datos[i + 1] +
+      0.114 * datos[i + 2];
+
+    const ajustado = Math.max(
+      0,
+      Math.min(
+        255,
+        (gris - 128) * contraste + 128
+      )
+    );
+
+    datos[i] = ajustado;
+    datos[i + 1] = ajustado;
+    datos[i + 2] = ajustado;
+  }
+
+  contexto.putImageData(imagen, 0, 0);
+
+  return canvas.toDataURL("image/png");
+}
+
+
+// ========================================
+// CAPTURAR FOTOGRAFIA
+// ========================================
+
+$("capturar").addEventListener("click", async () => {
+  const video = $("camara");
+
+  if (
+    !streamCamara ||
+    procesando ||
+    video.readyState < 2
+  ) {
+    return;
+  }
+
+  procesando = true;
+
+  try {
+    const tipo = etapa;
+
+    // 1. Recortar exactamente el recuadro.
+    const canvasRecorte = recortarCodificado(video);
+
+    // 2. Guardar la región original.
+    const recorteOriginal = canvasRecorte.toDataURL(
+      "image/png"
+    );
+
+    // 3. Preparar versión mejorada para OCR.
+    const imagenOCR = prepararRecorteOCR(
+      canvasRecorte
+    );
+
+    // 4. Conservar el recorte de esta etapa.
+    capturas[tipo] = recorteOriginal;
+    lecturas[tipo] = "";
+
+    // 5. Mostrar la región capturada.
+    $("foto-previa").src = recorteOriginal;
+    $("foto-previa").classList.remove("oculto");
+    $("camara").classList.add("oculto");
+
+    // 6. Detener cámara.
+    detenerCamara();
+
+    // 7. Actualizar botones.
+    $("capturar").classList.add("oculto");
+    $("repetir").classList.remove("oculto");
+    $("repetir").disabled = true;
+
+    $("siguiente").classList.add("oculto");
+    $("ver-resumen").classList.add("oculto");
+
+    // 8. Mostrar panel OCR.
+    $("panel-ocr").classList.remove("oculto");
+
+    $("texto-ocr").value = "";
+
+    $("recorte-ocr").src = imagenOCR;
+
+    $("estado-ocr").textContent =
+      "Procesando el recorte del codificado...";
+
+    // 9. Ejecutar OCR sobre la región procesada.
+    await reconocerOCR(imagenOCR, tipo);
+
+  } catch (error) {
+    console.error("Error al capturar:", error);
+
+    $("mensaje-camara").textContent =
+      "No fue posible procesar el recorte. Intenta nuevamente.";
+
+    procesando = false;
+    $("capturar").disabled = false;
+  }
+});
+
+
+// ========================================
+// TESSERACT.JS
+// ========================================
+
+async function obtenerWorker() {
+  if (typeof Tesseract === "undefined") {
+    throw new Error("No se cargó Tesseract.js");
+  }
+
+  if (!workerPromise) {
+    workerPromise = Tesseract.createWorker("eng")
+      .catch(error => {
+        workerPromise = null;
+        throw error;
+      });
+  }
+
+  return workerPromise;
+}
+
+async function reconocerOCR(fotografia, tipo) {
+  const generacion = ++generacionOCR;
+
+  try {
+    const worker = await obtenerWorker();
+
+    if (generacion !== generacionOCR) return;
+
+    $("estado-ocr").textContent =
+      "Reconociendo caracteres...";
+
+    const respuesta = await worker.recognize(fotografia);
+
+    if (generacion !== generacionOCR) return;
+
+    const texto = (respuesta.data.text || "").trim();
+
+    lecturas[tipo] = texto;
+    $("texto-ocr").value = texto;
+
+    if (texto) {
+      $("estado-ocr").textContent =
+        "Reconocimiento terminado. Lectura sin validar.";
+
+      if (tipo === "unidad") {
+        $("siguiente").classList.remove("oculto");
+      } else {
+        $("ver-resumen").classList.remove("oculto");
+      }
+    } else {
+      $("estado-ocr").textContent =
+        "No se detectó texto. Toma otra fotografía.";
+    }
+
+  } catch (error) {
+    if (generacion !== generacionOCR) return;
+
+    console.error("Error OCR:", error);
+
+    lecturas[tipo] = "";
+
+    $("estado-ocr").textContent =
+      "Error de OCR. Comprueba la conexión e inténtalo de nuevo.";
+
+  } finally {
+    if (generacion === generacionOCR) {
+      procesando = false;
+      $("repetir").disabled = false;
+    }
+  }
+}
+
+// ========================================
+// REPETIR Y CONTINUAR
+// ========================================
+
+$("repetir").addEventListener("click", () => {
+  cancelarLectura();
+  abrirEtapa(etapa);
+});
+
+$("siguiente").addEventListener("click", () => {
+  abrirEtapa("corrugado");
+});
+
+$("ver-resumen").addEventListener("click", () => {
+  detenerCamara();
+
+  $("res-unidad").textContent =
+    lecturas.unidad || "(Sin lectura)";
+
+  $("res-corrugado").textContent =
+    lecturas.corrugado || "(Sin lectura)";
+
+  $("estado-guardado").textContent = "";
+
+  mostrarPantalla("resumen");
+});
+
+$("reiniciar").addEventListener("click", () => {
+  limpiarInspeccion();
+  abrirEtapa("unidad");
+});
+
+// ========================================
+// HISTORIAL LOCAL
+// ========================================
+
+$("guardar").addEventListener("click", () => {
+  if (!lecturas.unidad || !lecturas.corrugado) {
+    $("estado-guardado").textContent =
+      "Se necesitan ambas lecturas para guardar.";
+    return;
+  }
+
+  const registro = {
+    linea: lineaActual,
+    fecha: new Date().toISOString(),
+    unidad: lecturas.unidad,
+    corrugado: lecturas.corrugado,
+    estado: "PENDIENTE_DE_VALIDACION"
+  };
+
+  try {
+    const historial = JSON.parse(
+      localStorage.getItem(STORAGE) || "[]"
+    );
+
+    historial.unshift(registro);
+
+    localStorage.setItem(
+      STORAGE,
+      JSON.stringify(historial.slice(0, 50))
+    );
+
+    $("estado-guardado").textContent =
+      "Prueba guardada localmente.";
+
+  } catch (error) {
+    $("estado-guardado").textContent =
+      "No se pudo guardar el historial.";
+  }
+});
+
+function mostrarHistorial() {
+  const contenedor = $("registros");
+
+  contenedor.replaceChildren();
+
+  let registros = [];
+
+  try {
+    registros = JSON.parse(
+      localStorage.getItem(STORAGE) || "[]"
+    ).filter(r => r.linea === lineaActual);
+  } catch (error) {
+    registros = [];
+  }
+
+  if (!registros.length) {
+    contenedor.textContent =
+      "No hay registros para esta línea.";
     return;
   }
 
@@ -312,135 +786,32 @@ function mostrarHistorial() {
     tarjeta.className = "registro";
 
     const titulo = document.createElement("strong");
-    titulo.textContent = registro.titulo;
+    titulo.textContent =
+      new Date(registro.fecha).toLocaleString("es-MX");
 
-    const fecha = document.createElement("p");
-    fecha.textContent = registro.fecha + " · " + registro.hora;
+    const unidad = document.createElement("p");
+    unidad.textContent =
+      "Unidad: " + registro.unidad;
 
-    const observacion = document.createElement("p");
-    observacion.textContent = registro.observacion;
+    const corrugado = document.createElement("p");
+    corrugado.textContent =
+      "Corrugado: " + registro.corrugado;
 
-    tarjeta.append(titulo, fecha, observacion);
+    const estado = document.createElement("p");
+    estado.textContent = "Pendiente de validación";
 
-    if (registro.foto) {
-      const imagen = document.createElement("img");
-      imagen.src = registro.foto;
-      imagen.alt = "Fotografía de inspección";
-      tarjeta.appendChild(imagen);
-    }
-
+    tarjeta.append(titulo, unidad, corrugado, estado);
     contenedor.appendChild(tarjeta);
   });
 }
 
-
-/* ==========================================
-   RECONOCIMIENTO OCR CON TESSERACT.JS
-========================================== */
-
-let trabajadorOCR = null;
-let procesandoOCR = false;
-let generacionOCR = 0;
-
-// Inicializar Tesseract una sola vez
-async function obtenerTrabajadorOCR() {
-  if (!trabajadorOCR) {
-    trabajadorOCR = Tesseract.createWorker("eng")
-      .catch(error => {
-        trabajadorOCR = null;
-        throw error;
-      });
-  }
-
-  return await trabajadorOCR;
-}
-
-// Procesar fotografía capturada
-async function reconocerTextoOCR() {
-  if (!fotoActual || procesandoOCR) return;
-
-  const generacion = ++generacionOCR;
-  const lineaCapturada = lineaActual;
-  const imagenCapturada = fotoActual;
-
-  procesandoOCR = true;
-
-  const panel = document.getElementById("panel-ocr");
-  const estado = document.getElementById("estado-ocr");
-  const texto = document.getElementById("texto-ocr");
-
-  panel.classList.remove("oculto");
-  texto.value = "";
-  estado.textContent = "Cargando motor OCR...";
-
-  btnRepetir.disabled = true;
-
-  try {
-    if (typeof Tesseract === "undefined") {
-      throw new Error("No se pudo cargar Tesseract.js.");
-    }
-
-    const trabajador = await obtenerTrabajadorOCR();
-
-    if (generacion !== generacionOCR) return;
-
-    estado.textContent = "Reconociendo caracteres...";
-
-    const respuesta = await trabajador.recognize(imagenCapturada);
-
-    if (generacion !== generacionOCR) return;
-
-    const textoDetectado = respuesta.data.text.trim();
-
-    texto.value = textoDetectado;
-
-    if (textoDetectado) {
-      estado.textContent = "Reconocimiento finalizado.";
-
-      guardarLecturaOCR({
-        linea: lineaCapturada,
-        foto: imagenCapturada,
-        texto: textoDetectado,
-        estado: "LECTURA_OCR"
-      });
-    } else {
-      estado.textContent =
-        "No se detectó texto. Intenta tomar otra fotografía.";
-    }
-
-  } catch (error) {
-    if (generacion === generacionOCR) {
-      console.error("Error OCR:", error);
-      estado.textContent =
-        "Error al procesar la imagen. Revisa la conexión y la consola.";
-    }
-  } finally {
-    if (generacion === generacionOCR) {
-      procesandoOCR = false;
-      btnRepetir.disabled = false;
-    }
-  }
-}
-
-// Guardar lectura de prueba en el historial existente
-function guardarLecturaOCR(datos) {
-  const fecha = new Date();
-
-  const registro = {
-    id: Date.now(),
-    linea: datos.linea,
-    estado: datos.estado,
-    titulo: "Lectura OCR realizada",
-    observacion: datos.texto,
-    fecha: fecha.toLocaleDateString("es-MX"),
-    hora: fecha.toLocaleTimeString("es-MX"),
-    foto: datos.foto
-  };
-
-  guardarRegistro(registro);
-}
-
-
-
+// ========================================
 // INICIO
-mostrarPantalla("pantalla-inicio");
+// ========================================
+
+window.addEventListener("pagehide", () => {
+  detenerCamara();
+  cancelarLectura();
+});
+
+mostrarPantalla("inicio");

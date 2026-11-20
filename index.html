@@ -4,137 +4,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Validación de codificados</title>
-    <link rel="stylesheet" href="styles.css">
 
     <link rel="stylesheet" href="styles.css">
 
-    <!-- Motor OCR Tesseract.js -->
+    <!-- Motor OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer>
     </script>
-
-    <!-- Funciones de nuestra aplicación -->
-    <script src="script.js" defer></script>
 
     <script src="script.js" defer></script>
 </head>
 
 <body>
     <div class="app">
+
         <header class="encabezado">
             <h1>Validación de codificados</h1>
-            <p>Prototipo Unidad y corrugado 2.0</p>
+            <p>Prototipo experimental · Unidad y corrugado</p>
         </header>
 
         <main>
-            <!-- Pantalla principal -->
-            <section id="pantalla-inicio" class="pantalla activa">
+
+            <!-- PANTALLA 1: LINEAS -->
+            <section id="inicio" class="pantalla activa">
                 <div class="tarjeta">
                     <h2>Selecciona una línea</h2>
-                    <div class="lista-lineas">
-                        <button data-linea="400">Línea 400</button>
-                        <button data-linea="500">Línea 500</button>
-                        <button data-linea="540">Línea 540</button>
-                        <button data-linea="520">Línea 520</button>
-                        <button data-linea="300">Línea 300</button>
-                        <button data-linea="800">Línea 800</button>
-                    </div>
-                    <p class="nota">Selecciona la línea que deseas inspeccionar.</p>
+                    <div id="lineas" class="acciones"></div>
                 </div>
             </section>
 
-            <!-- Opciones de línea -->
-            <section id="pantalla-opciones" class="pantalla">
+            <!-- PANTALLA 2: OPCIONES -->
+            <section id="opciones" class="pantalla">
                 <div class="tarjeta">
-                    <button class="volver" data-destino="pantalla-inicio">
+
+                    <button class="volver" data-volver="inicio">
                         ← Volver
                     </button>
-                    <h2 id="titulo-linea">Línea</h2>
+
+                    <h2 id="linea-titulo"></h2>
+
                     <div class="acciones">
-                        <button id="btn-validar">Validar producto</button>
-                        <button id="btn-historial">Ver historial</button>
+                        <button id="ir-validar">
+                            Validar producto
+                        </button>
+
+                        <button id="ir-historial">
+                            Ver historial
+                        </button>
                     </div>
+
                 </div>
             </section>
 
-
-            <!-- Captura y validación -->
-            <section id="pantalla-validar" class="pantalla">
+            <!-- PANTALLA 3: CAMARA GUIADA -->
+            <section id="validar" class="pantalla">
                 <div class="tarjeta">
-                    <button class="volver" data-destino="pantalla-opciones">
+
+                    <button class="volver" data-volver="opciones">
                         ← Volver
                     </button>
 
-                    <h2 id="titulo-validar">Validar producto</h2>
+                    <h2 id="etapa-titulo">
+                        Fotografía 1 de 2 · Unidad
+                    </h2>
 
-                    <p>
-                        Coloca la unidad y el corrugado dentro del encuadre
-                        para capturar sus codificados.
+                    <p id="etapa-ayuda">
+                        Coloca el codificado dentro del recuadro.
                     </p>
 
-                    <div class="contenedor-camara">
-                        <video id="camara" autoplay playsinline muted></video>
-                        <canvas id="canvas-foto" class="oculto"></canvas>
-                        <img id="vista-foto" class="vista-foto oculto" alt="Fotografía capturada">
-                    </div>
 
-                    <p id="mensaje-camara" class="nota" aria-live="polite">
-                        Preparando cámara...
-                    </p>
+                    <div class="camara-contenedor" id="contenedor-camara">
 
-                    <button id="btn-capturar" class="boton-principal" disabled>
-                        Capturar fotografía
-                    </button>
+                        <video id="camara" autoplay playsinline muted>
+                        </video>
 
-                    <button id="btn-repetir" class="boton-secundario oculto">
-                        Tomar otra fotografía
-                    </button>
+                        <img id="foto-previa" class="oculto" alt="Recorte del codificado capturado">
 
-                    <div id="resultado" class="resultado oculto" aria-live="polite">
-                        <h3 id="resultado-titulo"></h3>
-                        <p id="resultado-observacion"></p>
-                        <p id="resultado-fecha"></p>
+                        <div class="marco" id="marco-codificado"></div>
+
                     </div>
 
 
-                    <!-- RESULTADOS DEL RECONOCIMIENTO OCR -->
-                    <div id="panel-ocr" class="panel-ocr oculto">
+                    <!-- INDICADORES EN TIEMPO REAL -->
+                    <div class="indicadores">
 
-                        <h3>Reconocimiento de texto</h3>
-
-                        <p id="estado-ocr" aria-live="polite">
-                            Esperando fotografía...
+                        <p id="luz">
+                            Luz: analizando...
                         </p>
 
-                        <label for="texto-ocr">
-                            Texto detectado en la fotografía:
-                        </label>
+                        <p id="nitidez">
+                            Nitidez: analizando...
+                        </p>
 
-                        <textarea id="texto-ocr" rows="8" readonly placeholder="Aquí aparecerá el texto reconocido"></textarea>
+                        <p id="estabilidad">
+                            Estabilidad: analizando...
+                        </p>
 
                     </div>
 
+                    <p id="mensaje-camara" class="mensaje" role="status"></p>
+
+                    <!-- BOTONES -->
+                    <div class="acciones">
+
+                        <button id="capturar" disabled>
+                            Capturar fotografía
+                        </button>
+
+                        <button id="repetir" class="secundario oculto">
+                            Tomar otra fotografía
+                        </button>
+
+                        <button id="siguiente" class="oculto">
+                            Continuar con corrugado
+                        </button>
+
+                        <button id="ver-resumen" class="oculto">
+                            Ver ambas lecturas
+                        </button>
+
+                    </div>
+
+                    <!-- RECONOCIMIENTO OCR -->
+                    <div id="panel-ocr" class="panel-ocr oculto">
+
+                        <h3>Reconocimiento OCR</h3>
+
+                        <p id="estado-ocr" role="status"></p>
+
+                        <label for="texto-ocr">
+                            Texto reconocido (sin validar):
+                        </label>
+
+                        <p class="etiqueta-recorte">
+                            Región enviada al OCR:
+                        </p>
+
+                        <img id="recorte-ocr" class="recorte-ocr" alt="Región recortada y procesada para OCR">
+
+                        <textarea id="texto-ocr" rows="7" readonly>
+                        </textarea>
+
+                    </div>
 
                 </div>
             </section>
 
-
-            <!-- Historial -->
-            <section id="pantalla-historial" class="pantalla">
+            <!-- PANTALLA 4: RESULTADOS -->
+            <section id="resumen" class="pantalla">
                 <div class="tarjeta">
-                    <button class="volver" data-destino="pantalla-opciones">
+
+                    <button class="volver" data-volver="opciones">
                         ← Volver
                     </button>
-                    <h2 id="titulo-historial">Historial</h2>
-                    <div id="lista-historial"></div>
+
+                    <h2>Resultados de reconocimiento</h2>
+
+                    <p class="aviso">
+                        Lecturas pendientes de validación contra Excel.
+                        No representan una aprobación del producto.
+                    </p>
+
+                    <h3>Codificado de unidad</h3>
+                    <pre id="res-unidad"></pre>
+
+                    <h3>Codificado de corrugado</h3>
+                    <pre id="res-corrugado"></pre>
+
+                    <div class="acciones">
+
+                        <button id="guardar">
+                            Guardar prueba en historial
+                        </button>
+
+                        <button id="reiniciar" class="secundario">
+                            Nueva inspección
+                        </button>
+
+                    </div>
+
+                    <p id="estado-guardado" role="status"></p>
+
                 </div>
             </section>
+
+            <!-- PANTALLA 5: HISTORIAL -->
+            <section id="historial" class="pantalla">
+                <div class="tarjeta">
+
+                    <button class="volver" data-volver="opciones">
+                        ← Volver
+                    </button>
+
+                    <h2 id="historial-titulo">Historial</h2>
+
+                    <div id="registros"></div>
+
+                </div>
+            </section>
+
         </main>
 
         <footer>
-            Prototipo sin conexión a IA ni SharePoint.
+            Prototipo experimental sin conexión a SharePoint.
             No utilizar para liberar o rechazar producción.
         </footer>
+
     </div>
 </body>
 

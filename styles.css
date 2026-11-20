@@ -1,4 +1,6 @@
 
+/* CONFIGURACION GENERAL */
+
 * {
   box-sizing: border-box;
 }
@@ -19,6 +21,8 @@ body {
   border: 1px solid #d5dee8;
 }
 
+/* ENCABEZADO */
+
 .encabezado {
   background: #14385b;
   color: white;
@@ -26,18 +30,20 @@ body {
 }
 
 .encabezado h1 {
-  margin: 0 0 6px;
   font-size: 20px;
+  margin: 0 0 6px;
 }
 
 .encabezado p {
-  margin: 0;
   font-size: 12px;
   color: #dce9f7;
+  margin: 0;
 }
 
+/* PANTALLAS */
+
 main {
-  padding: 18px 12px;
+  padding: 16px 12px;
 }
 
 .pantalla {
@@ -52,232 +58,127 @@ main {
   background: white;
   padding: 20px 16px;
   border-radius: 14px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.07);
 }
 
 h2 {
   font-size: 20px;
-  margin: 0 0 16px;
-  color: #12365b;
+  color: #14385b;
+  margin: 8px 0 16px;
+}
+
+h3 {
+  font-size: 16px;
 }
 
 p {
-  line-height: 1.5;
   font-size: 14px;
+  line-height: 1.5;
 }
 
-/* LINEAS EN UNA SOLA COLUMNA */
-.lista-lineas {
+/* BOTONES */
+
+button {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.acciones {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
 }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-}
-
-.lista-lineas button,
-.acciones button,
-.boton-principal {
+.acciones button {
   width: 100%;
   padding: 15px;
-  border-radius: 8px;
   background: #1c629d;
   color: white;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: bold;
-  transition: background 0.2s;
+  border-radius: 8px;
 }
 
-.lista-lineas button:hover,
-.acciones button:hover,
-.boton-principal:hover {
+.acciones button:hover {
   background: #144b7a;
 }
 
-.acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.volver {
-  background: #e7eef5;
-  color: #14385b;
-  border-radius: 7px;
-  padding: 9px 13px;
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.nota {
-  color: #647b93;
-  font-size: 12px;
-  margin: 16px 0 0;
-}
-
-.etiqueta {
-  display: block;
-  font-size: 14px;
-  font-weight: bold;
-  margin: 20px 0 8px;
-}
-
-input[type="file"],
-select {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #c9d5e1;
-  border-radius: 8px;
-  background: white;
-  font-size: 14px;
-}
-
-.vista-foto {
-  width: 100%;
-  max-height: 350px;
-  object-fit: contain;
-  margin-top: 15px;
-  border-radius: 8px;
-  background: #edf2f7;
-}
-
-.boton-principal {
-  margin-top: 20px;
-}
-
-.resultado {
-  margin-top: 20px;
-  padding: 15px;
-  border-radius: 9px;
-  border: 1px solid #d5dee8;
-}
-
-.resultado.correcto {
-  background: #e6f5eb;
-  border-color: #9bd3ae;
-  color: #176335;
-}
-
-.resultado.incorrecto {
-  background: #fce8e8;
-  border-color: #efaaaa;
-  color: #9b2424;
-}
-
-.resultado.no-reconocida {
-  background: #fff4df;
-  border-color: #e8c78b;
-  color: #82560e;
-}
-
-.resultado h3 {
-  margin: 0 0 10px;
-}
-
-.registro {
-  padding: 14px;
-  margin-bottom: 12px;
-  border: 1px solid #dce4ed;
-  border-radius: 9px;
-}
-
-.registro p {
-  margin: 6px 0;
-}
-
-.registro img {
-  display: block;
-  width: 100%;
-  max-height: 220px;
-  object-fit: contain;
-  margin-top: 10px;
-  border-radius: 6px;
-}
-
-.oculto {
-  display: none !important;
-}
-
-footer {
-  padding: 20px;
-  text-align: center;
-  color: #6d8095;
-  font-size: 11px;
-}
-
-@media (min-width: 700px) {
-  .app {
-    margin: 20px auto;
-    min-height: calc(100vh - 40px);
-    border-radius: 14px;
-    overflow: hidden;
-  }
-}
-
-
-/* CAMARA EN VIVO */
-.contenedor-camara {
-  width: 100%;
-  background: #102a43;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-  margin-top: 15px;
-  aspect-ratio: 3 / 4;
-}
-
-#camara {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-#camara.oculto {
-  display: none;
-}
-
-#vista-foto {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-height: none;
-  margin: 0;
-  object-fit: contain;
-}
-
-#btn-capturar:disabled {
-  opacity: 0.55;
+.acciones button:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.boton-secundario {
-  width: 100%;
-  padding: 14px;
-  margin-top: 10px;
-  border-radius: 8px;
+.acciones button.secundario,
+.volver {
   background: #e6eef6;
   color: #14385b;
+}
+
+.volver {
+  padding: 10px 12px;
+  border-radius: 7px;
+  margin-bottom: 15px;
   font-weight: bold;
-  font-size: 14px;
 }
 
-.boton-secundario:hover {
-  background: #d4e2ef;
+/* CAMARA */
+
+.camara-contenedor {
+  width: 100%;
+  position: relative;
+  background: #142a3b;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 15px;
 }
 
+#camara,
+#foto-previa {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
+/* RECUADRO GUIA */
 
-/* PANEL DE RECONOCIMIENTO OCR */
+.marco {
+  position: absolute;
+  top: 25%;
+  left: 9%;
+  width: 82%;
+  height: 50%;
+  border: 2px dashed #c6d9ed;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+/* INDICADORES DE CALIDAD */
+
+.indicadores {
+  background: #edf4fa;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+
+.indicadores p {
+  margin: 7px 0;
+  font-size: 13px;
+}
+
+.mensaje {
+  color: #526a80;
+  font-size: 13px;
+}
+
+/* PANEL OCR */
 
 .panel-ocr {
-  margin-top: 20px;
-  padding: 16px;
+  margin-top: 18px;
+  padding: 14px;
   background: #f0f6fc;
   border: 1px solid #cbddeb;
   border-radius: 10px;
@@ -286,31 +187,121 @@ footer {
 .panel-ocr h3 {
   color: #14385b;
   margin-top: 0;
-  font-size: 17px;
 }
 
 .panel-ocr label {
   display: block;
-  margin: 12px 0 8px;
+  margin: 10px 0;
   font-size: 13px;
   font-weight: bold;
 }
 
-#estado-ocr {
-  color: #45647f;
-  font-size: 13px;
-}
-
 #texto-ocr {
   width: 100%;
-  min-height: 170px;
+  min-height: 150px;
   padding: 12px;
   border: 1px solid #c5d5e5;
   border-radius: 8px;
   background: white;
-  color: #173451;
   font-family: monospace;
   font-size: 13px;
   line-height: 1.5;
   resize: vertical;
+}
+
+/* RESULTADOS */
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 55px;
+  font-size: 13px;
+}
+
+.aviso {
+  background: #fff4dc;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.registro {
+  border: 1px solid #dce4ed;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.registro p {
+  overflow-wrap: anywhere;
+}
+
+.oculto {
+  display: none !important;
+}
+
+/* PIE DE PAGINA */
+
+footer {
+  text-align: center;
+  color: #6d8095;
+  font-size: 11px;
+  padding: 20px;
+}
+
+@media (min-width: 700px) {
+  .app {
+    margin: 20px auto;
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: calc(100vh - 40px);
+  }
+}
+
+
+/* RECUADRO DE CAPTURA */
+
+.marco {
+  position: absolute;
+  top: 25%;
+  left: 9%;
+  width: 82%;
+  height: 50%;
+  border: 2px dashed #64d2ff;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* VISTA DEL RECORTE OCR */
+
+.etiqueta-recorte {
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 15px;
+}
+
+.recorte-ocr {
+  display: block;
+  width: 100%;
+  max-height: 250px;
+  object-fit: contain;
+  background: #e5edf5;
+  border: 1px solid #c5d5e5;
+  border-radius: 8px;
+  margin: 10px 0 15px;
+}
+
+
+/* Ocultar guía cuando se muestra la fotografía */
+.camara-contenedor:has(#camara.oculto) .marco {
+  display: none;
+}
+
+/* Mostrar el recorte sin deformarlo */
+#foto-previa {
+  object-fit: contain;
+  background: #142a3b;
 }
