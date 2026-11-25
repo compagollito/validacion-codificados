@@ -1,817 +1,473 @@
 
-"use strict";
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
 
-// ========================================
-// CONFIGURACION GENERAL
-// ========================================
+const camaraContenedor =
+    document.getElementById("camaraContenedor");
 
-const LINEAS = ["400", "500", "540", "520", "300", "800"];
-const STORAGE = "codificados_demo_dos_fotos_v3";
+const recuadro = document.getElementById("recuadro");
 
-const $ = id => document.getElementById(id);
+const vistaPrevia =
+    document.getElementById("vistaPrevia");
 
-let lineaActual = null;
-let etapa = "unidad";
+const imagenCapturada =
+    document.getElementById("imagenCapturada");
 
-let streamCamara = null;
-let timerCalidad = null;
-let sesionCamara = 0;
-let generacionOCR = 0;
+const controlesCamara =
+    document.getElementById("controlesCamara");
 
-let workerPromise = null;
-let procesando = false;
+const controlesRevision =
+    document.getElementById("controlesRevision");
 
-let capturas = {
-  unidad: null,
-  corrugado: null
-};
+const resultadoFinal =
+    document.getElementById("resultadoFinal");
 
-let lecturas = {
-  unidad: "",
-  corrugado: ""
-};
+const pasoTexto =
+    document.getElementById("pasoTexto");
 
-let muestraAnterior = null;
+const tipoObjeto =
+    document.getElementById("tipoObjeto");
 
-// ========================================
-// NAVEGACION
-// ========================================
+const tituloCaptura =
+    document.getElementById("tituloCaptura");
 
-function mostrarPantalla(id) {
-  document.querySelectorAll(".pantalla").forEach(p => {
-    p.classList.toggle("activa", p.id === id);
-  });
+const instrucciones =
+    document.getElementById("instrucciones");
 
-  window.scrollTo(0, 0);
+const mensajeEstado =
+    document.getElementById("mensajeEstado");
+
+let pasoActual = 1;
+let stream = null;
+let fotoTemporal = null;
+
+let fotoUnidad = null;
+let fotoCorrugado = null;
+
+
+// ===============================
+// INICIAR CAMARA
+// ===============================
+
+async function iniciarCamara() {
+
+    try {
+
+        detenerCamara();
+
+        if (!navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia) {
+
+            throw new Error(
+                "La cámara requiere HTTPS o localhost."
+            );
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+                facingMode: {
+                    ideal: "environment"
+                },
+                width: {
+                    ideal: 1920
+                },
+                height: {
+                    ideal: 1080
+                }
+            }
+        });
+
+        video.srcObject = stream;
+
+        await video.play();
+
+        mensajeEstado.textContent =
+            "Cámara lista. Coloca el código dentro del recuadro.";
+
+    } catch (error) {
+
+        console.error(error);
+
+        mensajeEstado.textContent =
+            "No se pudo abrir la cámara. " +
+            "Revisa los permisos y utiliza HTTPS.";
+
+    }
 }
 
-function seleccionarLinea(numero) {
-  detenerCamara();
-  cancelarLectura();
 
-  lineaActual = numero;
-
-  $("linea-titulo").textContent = "Línea " + numero;
-
-  $("historial-titulo").textContent =
-    "Historial · Línea " + numero;
-
-  mostrarPantalla("opciones");
-}
-
-// Crear botones de las seis líneas
-LINEAS.forEach(numero => {
-  const boton = document.createElement("button");
-
-  boton.textContent = "Línea " + numero;
-
-  boton.addEventListener("click", () => {
-    seleccionarLinea(numero);
-  });
-
-  $("lineas").appendChild(boton);
-});
-
-// Botones volver
-document.querySelectorAll("[data-volver]").forEach(boton => {
-  boton.addEventListener("click", () => {
-    detenerCamara();
-    cancelarLectura();
-    mostrarPantalla(boton.dataset.volver);
-  });
-});
-
-$("ir-validar").addEventListener("click", () => {
-  limpiarInspeccion();
-  abrirEtapa("unidad");
-});
-
-$("ir-historial").addEventListener("click", () => {
-  detenerCamara();
-  mostrarHistorial();
-  mostrarPantalla("historial");
-});
-
-// ========================================
-// LIMPIAR INSPECCION
-// ========================================
-
-function limpiarInspeccion() {
-  capturas = {
-    unidad: null,
-    corrugado: null
-  };
-
-  lecturas = {
-    unidad: "",
-    corrugado: ""
-  };
-}
-
-function cancelarLectura() {
-  generacionOCR++;
-  procesando = false;
-}
-
-// ========================================
-// CONTROL DE CAMARA
-// ========================================
+// ===============================
+// DETENER CAMARA
+// ===============================
 
 function detenerCamara() {
-  sesionCamara++;
 
-  if (timerCalidad) {
-    clearInterval(timerCalidad);
-    timerCalidad = null;
-  }
+    if (stream) {
 
-  if (streamCamara) {
-    streamCamara.getTracks().forEach(track => {
-      track.stop();
-    });
+        stream.getTracks().forEach(track => {
+            track.stop();
+        });
 
-    streamCamara = null;
-  }
-
-  const video = $("camara");
-
-  video.pause();
-  video.srcObject = null;
-
-  $("capturar").disabled = true;
-}
-
-// ========================================
-// ABRIR ETAPA
-// ========================================
-
-async function abrirEtapa(tipo) {
-  detenerCamara();
-  cancelarLectura();
-
-  etapa = tipo;
-  muestraAnterior = null;
-
-  const esUnidad = tipo === "unidad";
-
-  $("etapa-titulo").textContent = esUnidad
-    ? "Fotografía 1 de 2 · Unidad"
-    : "Fotografía 2 de 2 · Corrugado";
-
-  $("etapa-ayuda").textContent = esUnidad
-    ? "Coloca el codificado de la unidad dentro del recuadro."
-    : "Coloca el codificado del corrugado dentro del recuadro.";
-
-  // Restablecer interfaz
-  $("foto-previa").classList.add("oculto");
-  $("camara").classList.remove("oculto");
-
-  $("panel-ocr").classList.add("oculto");
-  $("recorte-ocr").removeAttribute("src");
-  $("foto-previa").removeAttribute("src");
-  $("repetir").classList.add("oculto");
-  $("siguiente").classList.add("oculto");
-  $("ver-resumen").classList.add("oculto");
-
-  $("capturar").classList.remove("oculto");
-  $("capturar").disabled = true;
-
-  $("luz").textContent = "Luz: analizando...";
-  $("nitidez").textContent = "Nitidez: analizando...";
-  $("estabilidad").textContent = "Estabilidad: analizando...";
-
-  $("mensaje-camara").textContent =
-    "Preparando cámara...";
-
-  mostrarPantalla("validar");
-
-  const sesion = sesionCamara;
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    $("mensaje-camara").textContent =
-      "La cámara requiere HTTPS o localhost.";
-    return;
-  }
-
-  try {
-    let nuevoStream;
-
-    // Preferir cámara trasera
-    try {
-      nuevoStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      });
-    } catch (error) {
-      if (error.name !== "OverconstrainedError") {
-        throw error;
-      }
-
-      nuevoStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: true
-      });
+        stream = null;
     }
 
-    // Evitar activar cámara si se abandonó la pantalla
-    if (sesion !== sesionCamara) {
-      nuevoStream.getTracks().forEach(t => t.stop());
-      return;
-    }
-
-    streamCamara = nuevoStream;
-
-    const video = $("camara");
-    video.srcObject = nuevoStream;
-
-    await video.play();
-
-    if (sesion !== sesionCamara) return;
-
-    $("capturar").disabled = false;
-
-    $("mensaje-camara").textContent =
-      "Encuadra el codificado y mantén estable el celular.";
-
-    // Analizar imagen aproximadamente cada 650 ms
-    timerCalidad = setInterval(analizarCalidad, 650);
-
-  } catch (error) {
-    if (sesion !== sesionCamara) return;
-
-    console.error("Error de cámara:", error);
-
-    $("mensaje-camara").textContent =
-      "No se pudo abrir la cámara. Revisa los permisos.";
-  }
-}
-
-// ========================================
-// ANALISIS DE CALIDAD EN TIEMPO REAL
-// ========================================
-
-function analizarCalidad() {
-  const video = $("camara");
-
-  if (!streamCamara || video.readyState < 2) return;
-
-  const canvas = document.createElement("canvas");
-
-  canvas.width = 160;
-  canvas.height = 120;
-
-  const ctx = canvas.getContext("2d", {
-    willReadFrequently: true
-  });
-
-  ctx.drawImage(video, 0, 0, 160, 120);
-
-  const pixeles = ctx.getImageData(
-    0, 0, 160, 120
-  ).data;
-
-  const grises = new Float32Array(160 * 120);
-
-  let brilloTotal = 0;
-  let saturados = 0;
-
-  // Convertir imagen a escala de grises
-  for (let i = 0, j = 0; i < pixeles.length; i += 4, j++) {
-    const gris =
-      0.299 * pixeles[i] +
-      0.587 * pixeles[i + 1] +
-      0.114 * pixeles[i + 2];
-
-    grises[j] = gris;
-    brilloTotal += gris;
-
-    if (gris > 245) saturados++;
-  }
-
-  const brillo = brilloTotal / grises.length;
-  const porcentajeSaturado = saturados / grises.length;
-
-  // ILUMINACION
-  if (brillo < 65) {
-    $("luz").textContent =
-      "⚠️ Poca luz. Mejora la iluminación.";
-  } else if (brillo > 215 || porcentajeSaturado > 0.25) {
-    $("luz").textContent =
-      "⚠️ Exceso de luz. Evita los reflejos.";
-  } else {
-    $("luz").textContent =
-      "✓ Iluminación aceptable (estimación).";
-  }
-
-  // NITIDEZ: varianza del Laplaciano
-  let suma = 0;
-  let sumaCuadrados = 0;
-  let cantidad = 0;
-
-  for (let y = 1; y < 119; y += 2) {
-    for (let x = 1; x < 159; x += 2) {
-      const k = y * 160 + x;
-
-      const laplaciano =
-        4 * grises[k] -
-        grises[k - 1] -
-        grises[k + 1] -
-        grises[k - 160] -
-        grises[k + 160];
-
-      suma += laplaciano;
-      sumaCuadrados += laplaciano * laplaciano;
-      cantidad++;
-    }
-  }
-
-  const varianza =
-    sumaCuadrados / cantidad -
-    Math.pow(suma / cantidad, 2);
-
-  if (varianza < 110) {
-    $("nitidez").textContent =
-      "⚠️ Posible desenfoque. Ajusta el enfoque.";
-  } else {
-    $("nitidez").textContent =
-      "✓ Nitidez aceptable (estimación).";
-  }
-
-  // ESTABILIDAD: diferencia entre muestras
-  const muestra = [];
-
-  for (let y = 8; y < 120; y += 16) {
-    for (let x = 8; x < 160; x += 16) {
-      muestra.push(grises[y * 160 + x]);
-    }
-  }
-
-  if (muestraAnterior) {
-    let diferencia = 0;
-
-    for (let i = 0; i < muestra.length; i++) {
-      diferencia += Math.abs(
-        muestra[i] - muestraAnterior[i]
-      );
-    }
-
-    diferencia /= muestra.length;
-
-    $("estabilidad").textContent = diferencia > 18
-      ? "⚠️ Posible movimiento. Mantén estable el celular."
-      : "✓ Estabilidad aceptable (estimación).";
-  }
-
-  muestraAnterior = muestra;
+    video.srcObject = null;
 }
 
 
+// ===============================
+// CONFIGURAR PASO
+// ===============================
 
-/* ==========================================
-   RECORTE AUTOMATICO Y PREPROCESAMIENTO
-========================================== */
+function configurarPaso() {
 
-// Recorta exactamente la zona visible del recuadro.
-// Compatible con object-fit: contain y object-fit: cover.
-function recortarCodificado(video) {
-  const contenedor = document.getElementById("contenedor-camara");
-  const marco = document.getElementById("marco-codificado");
+    pasoTexto.textContent =
+        `Paso ${pasoActual} de 2`;
 
-  const cajaVideo = video.getBoundingClientRect();
-  const cajaMarco = marco.getBoundingClientRect();
+    camaraContenedor.classList.remove("oculto");
 
-  const anchoOriginal = video.videoWidth;
-  const altoOriginal = video.videoHeight;
+    vistaPrevia.classList.add("oculto");
 
-  if (!anchoOriginal || !altoOriginal) {
-    throw new Error("La cámara no tiene dimensiones válidas.");
-  }
+    controlesCamara.classList.remove("oculto");
 
-  const estilo = getComputedStyle(video);
-  const ajuste = estilo.objectFit;
+    controlesRevision.classList.add("oculto");
 
-  const escala = ajuste === "cover"
-    ? Math.max(
-        cajaVideo.width / anchoOriginal,
-        cajaVideo.height / altoOriginal
-      )
-    : Math.min(
-        cajaVideo.width / anchoOriginal,
-        cajaVideo.height / altoOriginal
-      );
+    resultadoFinal.classList.add("oculto");
 
-  const anchoVisible = anchoOriginal * escala;
-  const altoVisible = altoOriginal * escala;
+    if (pasoActual === 1) {
 
-  // Posición de la imagen dentro del elemento video.
-  // Nuestro CSS utiliza el centrado predeterminado.
-  const desplazamientoX =
-    (cajaVideo.width - anchoVisible) / 2;
+        tipoObjeto.textContent = "UNIDAD";
 
-  const desplazamientoY =
-    (cajaVideo.height - altoVisible) / 2;
+        tituloCaptura.textContent =
+            "Captura el código de la unidad";
 
-  const izquierdaMarco = cajaMarco.left - cajaVideo.left;
-  const arribaMarco = cajaMarco.top - cajaVideo.top;
+        instrucciones.textContent =
+            "Coloca el lotificado de la unidad " +
+            "dentro del recuadro pequeño.";
 
-  const x1 = Math.max(
-    0,
-    (izquierdaMarco - desplazamientoX) / escala
-  );
+        recuadro.className = "recuadro unidad";
 
-  const y1 = Math.max(
-    0,
-    (arribaMarco - desplazamientoY) / escala
-  );
+    } else {
 
-  const x2 = Math.min(
-    anchoOriginal,
-    (izquierdaMarco + cajaMarco.width - desplazamientoX) / escala
-  );
+        tipoObjeto.textContent = "CORRUGADO";
 
-  const y2 = Math.min(
-    altoOriginal,
-    (arribaMarco + cajaMarco.height - desplazamientoY) / escala
-  );
+        tituloCaptura.textContent =
+            "Captura el código del corrugado";
 
-  const x = Math.floor(x1);
-  const y = Math.floor(y1);
+        instrucciones.textContent =
+            "Coloca toda la información del " +
+            "lotificado dentro del recuadro grande.";
 
-  const ancho = Math.ceil(x2) - x;
-  const alto = Math.ceil(y2) - y;
+        recuadro.className = "recuadro corrugado";
+    }
 
-  if (ancho < 30 || alto < 20) {
-    throw new Error(
-      "El recuadro no coincide con el área visible de la cámara."
-    );
-  }
-
-  const canvas = document.createElement("canvas");
-
-  canvas.width = ancho;
-  canvas.height = alto;
-
-  const contexto = canvas.getContext("2d");
-
-  contexto.drawImage(
-    video,
-    x, y, ancho, alto,
-    0, 0, ancho, alto
-  );
-
-  return canvas;
+    iniciarCamara();
 }
 
-// Amplía y mejora el contraste del recorte.
-function prepararRecorteOCR(canvasOriginal) {
-  const escala = Math.min(
-    3,
-    2400 / Math.max(
-      canvasOriginal.width,
-      canvasOriginal.height
-    )
-  );
 
-  const canvas = document.createElement("canvas");
+// ===============================
+// CAPTURAR Y RECORTAR
+// ===============================
 
-  canvas.width = Math.max(
-    1,
-    Math.round(canvasOriginal.width * escala)
-  );
+function capturarFotografia() {
 
-  canvas.height = Math.max(
-    1,
-    Math.round(canvasOriginal.height * escala)
-  );
+    if (!stream ||
+        video.readyState < 2 ||
+        !video.videoWidth ||
+        !video.videoHeight) {
 
-  const contexto = canvas.getContext("2d", {
-    willReadFrequently: true
-  });
+        mensajeEstado.textContent =
+            "Espera a que la cámara esté lista.";
 
-  contexto.imageSmoothingEnabled = true;
-  contexto.imageSmoothingQuality = "high";
+        return;
+    }
 
-  contexto.drawImage(
-    canvasOriginal,
-    0, 0,
-    canvas.width,
-    canvas.height
-  );
+    // Medidas de la vista previa
+    const videoRect =
+        video.getBoundingClientRect();
 
-  const imagen = contexto.getImageData(
-    0, 0,
-    canvas.width,
-    canvas.height
-  );
+    const roiRect =
+        recuadro.getBoundingClientRect();
 
-  const datos = imagen.data;
+    // Resolución real de la cámara
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
 
-  // Escala de grises y contraste moderado.
-  const contraste = 1.45;
+    // object-fit: cover
+    // Calculamos la escala utilizada para llenar
+    // el contenedor sin deformar la imagen.
 
-  for (let i = 0; i < datos.length; i += 4) {
-    const gris =
-      0.299 * datos[i] +
-      0.587 * datos[i + 1] +
-      0.114 * datos[i + 2];
-
-    const ajustado = Math.max(
-      0,
-      Math.min(
-        255,
-        (gris - 128) * contraste + 128
-      )
+    const escala = Math.max(
+        videoRect.width / videoWidth,
+        videoRect.height / videoHeight
     );
 
-    datos[i] = ajustado;
-    datos[i + 1] = ajustado;
-    datos[i + 2] = ajustado;
-  }
+    const anchoMostrado = videoWidth * escala;
+    const altoMostrado = videoHeight * escala;
 
-  contexto.putImageData(imagen, 0, 0);
+    const desplazamientoX =
+        (anchoMostrado - videoRect.width) / 2;
 
-  return canvas.toDataURL("image/png");
+    const desplazamientoY =
+        (altoMostrado - videoRect.height) / 2;
+
+    // Coordenadas del recuadro dentro del video
+    const xPantalla =
+        roiRect.left - videoRect.left;
+
+    const yPantalla =
+        roiRect.top - videoRect.top;
+
+    // Convertir a coordenadas de la imagen real
+    let sx =
+        (xPantalla + desplazamientoX) / escala;
+
+    let sy =
+        (yPantalla + desplazamientoY) / escala;
+
+    let sw = roiRect.width / escala;
+    let sh = roiRect.height / escala;
+
+    // Limitar recorte al tamaño real
+    sx = Math.max(0, sx);
+    sy = Math.max(0, sy);
+
+    sw = Math.min(sw, videoWidth - sx);
+    sh = Math.min(sh, videoHeight - sy);
+
+    if (sw <= 0 || sh <= 0) {
+        mensajeEstado.textContent =
+            "No se pudo calcular el recorte.";
+        return;
+    }
+
+    // Crear imagen del recuadro
+    canvas.width = Math.round(sw);
+    canvas.height = Math.round(sh);
+
+    const contexto = canvas.getContext("2d");
+
+    contexto.drawImage(
+        video,
+        sx,
+        sy,
+        sw,
+        sh,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    fotoTemporal = canvas.toDataURL(
+        "image/jpeg",
+        0.95
+    );
+
+    imagenCapturada.src = fotoTemporal;
+
+    camaraContenedor.classList.add("oculto");
+    controlesCamara.classList.add("oculto");
+
+    vistaPrevia.classList.remove("oculto");
+    controlesRevision.classList.remove("oculto");
+
+    mensajeEstado.textContent =
+        "Revisa que el código esté completo y legible.";
+
+    detenerCamara();
 }
 
 
-// ========================================
-// CAPTURAR FOTOGRAFIA
-// ========================================
+// ===============================
+// REPETIR FOTOGRAFIA
+// ===============================
 
-$("capturar").addEventListener("click", async () => {
-  const video = $("camara");
+function repetirFotografia() {
 
-  if (
-    !streamCamara ||
-    procesando ||
-    video.readyState < 2
-  ) {
-    return;
-  }
+    fotoTemporal = null;
 
-  procesando = true;
+    vistaPrevia.classList.add("oculto");
+    controlesRevision.classList.add("oculto");
 
-  try {
-    const tipo = etapa;
+    camaraContenedor.classList.remove("oculto");
+    controlesCamara.classList.remove("oculto");
 
-    // 1. Recortar exactamente el recuadro.
-    const canvasRecorte = recortarCodificado(video);
+    iniciarCamara();
+}
 
-    // 2. Guardar la región original.
-    const recorteOriginal = canvasRecorte.toDataURL(
-      "image/png"
-    );
 
-    // 3. Preparar versión mejorada para OCR.
-    const imagenOCR = prepararRecorteOCR(
-      canvasRecorte
-    );
+// ===============================
+// CONFIRMAR FOTOGRAFIA
+// ===============================
 
-    // 4. Conservar el recorte de esta etapa.
-    capturas[tipo] = recorteOriginal;
-    lecturas[tipo] = "";
+function confirmarFotografia() {
 
-    // 5. Mostrar la región capturada.
-    $("foto-previa").src = recorteOriginal;
-    $("foto-previa").classList.remove("oculto");
-    $("camara").classList.add("oculto");
+    if (!fotoTemporal) {
+        return;
+    }
 
-    // 6. Detener cámara.
+    if (pasoActual === 1) {
+
+        fotoUnidad = fotoTemporal;
+
+        fotoTemporal = null;
+
+        pasoActual = 2;
+
+        configurarPaso();
+
+    } else {
+
+        fotoCorrugado = fotoTemporal;
+
+        fotoTemporal = null;
+
+        mostrarResultadoFinal();
+    }
+}
+
+
+// ===============================
+// RESULTADO FINAL
+// ===============================
+
+function mostrarResultadoFinal() {
+
     detenerCamara();
 
-    // 7. Actualizar botones.
-    $("capturar").classList.add("oculto");
-    $("repetir").classList.remove("oculto");
-    $("repetir").disabled = true;
+    camaraContenedor.classList.add("oculto");
+    vistaPrevia.classList.add("oculto");
 
-    $("siguiente").classList.add("oculto");
-    $("ver-resumen").classList.add("oculto");
+    controlesCamara.classList.add("oculto");
+    controlesRevision.classList.add("oculto");
 
-    // 8. Mostrar panel OCR.
-    $("panel-ocr").classList.remove("oculto");
+    resultadoFinal.classList.remove("oculto");
 
-    $("texto-ocr").value = "";
+    pasoTexto.textContent = "Inspección completada";
+    tipoObjeto.textContent = "FINALIZADO";
 
-    $("recorte-ocr").src = imagenOCR;
+    tituloCaptura.textContent =
+        "Capturas realizadas";
 
-    $("estado-ocr").textContent =
-      "Procesando el recorte del codificado...";
+    instrucciones.textContent =
+        "Ambos códigos están listos para su procesamiento.";
 
-    // 9. Ejecutar OCR sobre la región procesada.
-    await reconocerOCR(imagenOCR, tipo);
+    document.getElementById(
+        "resultadoUnidad"
+    ).src = fotoUnidad;
 
-  } catch (error) {
-    console.error("Error al capturar:", error);
+    document.getElementById(
+        "resultadoCorrugado"
+    ).src = fotoCorrugado;
 
-    $("mensaje-camara").textContent =
-      "No fue posible procesar el recorte. Intenta nuevamente.";
-
-    procesando = false;
-    $("capturar").disabled = false;
-  }
-});
-
-
-// ========================================
-// TESSERACT.JS
-// ========================================
-
-async function obtenerWorker() {
-  if (typeof Tesseract === "undefined") {
-    throw new Error("No se cargó Tesseract.js");
-  }
-
-  if (!workerPromise) {
-    workerPromise = Tesseract.createWorker("eng")
-      .catch(error => {
-        workerPromise = null;
-        throw error;
-      });
-  }
-
-  return workerPromise;
+    mensajeEstado.textContent =
+        "Puedes descargar los recortes.";
 }
 
-async function reconocerOCR(fotografia, tipo) {
-  const generacion = ++generacionOCR;
 
-  try {
-    const worker = await obtenerWorker();
+// ===============================
+// DESCARGAR IMAGEN
+// ===============================
 
-    if (generacion !== generacionOCR) return;
+function descargarImagen(imagen, nombre) {
 
-    $("estado-ocr").textContent =
-      "Reconociendo caracteres...";
+    const enlace = document.createElement("a");
 
-    const respuesta = await worker.recognize(fotografia);
+    enlace.href = imagen;
+    enlace.download = nombre;
 
-    if (generacion !== generacionOCR) return;
+    document.body.appendChild(enlace);
 
-    const texto = (respuesta.data.text || "").trim();
+    enlace.click();
 
-    lecturas[tipo] = texto;
-    $("texto-ocr").value = texto;
+    enlace.remove();
+}
 
-    if (texto) {
-      $("estado-ocr").textContent =
-        "Reconocimiento terminado. Lectura sin validar.";
 
-      if (tipo === "unidad") {
-        $("siguiente").classList.remove("oculto");
-      } else {
-        $("ver-resumen").classList.remove("oculto");
-      }
-    } else {
-      $("estado-ocr").textContent =
-        "No se detectó texto. Toma otra fotografía.";
+// ===============================
+// DESCARGAR AMBOS RECORTES
+// ===============================
+
+function descargarRecortes() {
+
+    if (!fotoUnidad || !fotoCorrugado) {
+        return;
     }
 
-  } catch (error) {
-    if (generacion !== generacionOCR) return;
-
-    console.error("Error OCR:", error);
-
-    lecturas[tipo] = "";
-
-    $("estado-ocr").textContent =
-      "Error de OCR. Comprueba la conexión e inténtalo de nuevo.";
-
-  } finally {
-    if (generacion === generacionOCR) {
-      procesando = false;
-      $("repetir").disabled = false;
-    }
-  }
-}
-
-// ========================================
-// REPETIR Y CONTINUAR
-// ========================================
-
-$("repetir").addEventListener("click", () => {
-  cancelarLectura();
-  abrirEtapa(etapa);
-});
-
-$("siguiente").addEventListener("click", () => {
-  abrirEtapa("corrugado");
-});
-
-$("ver-resumen").addEventListener("click", () => {
-  detenerCamara();
-
-  $("res-unidad").textContent =
-    lecturas.unidad || "(Sin lectura)";
-
-  $("res-corrugado").textContent =
-    lecturas.corrugado || "(Sin lectura)";
-
-  $("estado-guardado").textContent = "";
-
-  mostrarPantalla("resumen");
-});
-
-$("reiniciar").addEventListener("click", () => {
-  limpiarInspeccion();
-  abrirEtapa("unidad");
-});
-
-// ========================================
-// HISTORIAL LOCAL
-// ========================================
-
-$("guardar").addEventListener("click", () => {
-  if (!lecturas.unidad || !lecturas.corrugado) {
-    $("estado-guardado").textContent =
-      "Se necesitan ambas lecturas para guardar.";
-    return;
-  }
-
-  const registro = {
-    linea: lineaActual,
-    fecha: new Date().toISOString(),
-    unidad: lecturas.unidad,
-    corrugado: lecturas.corrugado,
-    estado: "PENDIENTE_DE_VALIDACION"
-  };
-
-  try {
-    const historial = JSON.parse(
-      localStorage.getItem(STORAGE) || "[]"
+    descargarImagen(
+        fotoUnidad,
+        "codigo_unidad.jpg"
     );
 
-    historial.unshift(registro);
-
-    localStorage.setItem(
-      STORAGE,
-      JSON.stringify(historial.slice(0, 50))
+    descargarImagen(
+        fotoCorrugado,
+        "codigo_corrugado.jpg"
     );
-
-    $("estado-guardado").textContent =
-      "Prueba guardada localmente.";
-
-  } catch (error) {
-    $("estado-guardado").textContent =
-      "No se pudo guardar el historial.";
-  }
-});
-
-function mostrarHistorial() {
-  const contenedor = $("registros");
-
-  contenedor.replaceChildren();
-
-  let registros = [];
-
-  try {
-    registros = JSON.parse(
-      localStorage.getItem(STORAGE) || "[]"
-    ).filter(r => r.linea === lineaActual);
-  } catch (error) {
-    registros = [];
-  }
-
-  if (!registros.length) {
-    contenedor.textContent =
-      "No hay registros para esta línea.";
-    return;
-  }
-
-  registros.forEach(registro => {
-    const tarjeta = document.createElement("div");
-    tarjeta.className = "registro";
-
-    const titulo = document.createElement("strong");
-    titulo.textContent =
-      new Date(registro.fecha).toLocaleString("es-MX");
-
-    const unidad = document.createElement("p");
-    unidad.textContent =
-      "Unidad: " + registro.unidad;
-
-    const corrugado = document.createElement("p");
-    corrugado.textContent =
-      "Corrugado: " + registro.corrugado;
-
-    const estado = document.createElement("p");
-    estado.textContent = "Pendiente de validación";
-
-    tarjeta.append(titulo, unidad, corrugado, estado);
-    contenedor.appendChild(tarjeta);
-  });
 }
 
-// ========================================
-// INICIO
-// ========================================
 
-window.addEventListener("pagehide", () => {
-  detenerCamara();
-  cancelarLectura();
-});
+// ===============================
+// NUEVA INSPECCION
+// ===============================
 
-mostrarPantalla("inicio");
+function nuevaInspeccion() {
+
+    fotoUnidad = null;
+    fotoCorrugado = null;
+    fotoTemporal = null;
+
+    pasoActual = 1;
+
+    configurarPaso();
+}
+
+
+// ===============================
+// EVENTOS
+// ===============================
+
+document.getElementById(
+    "btnCapturar"
+).addEventListener(
+    "click",
+    capturarFotografia
+);
+
+document.getElementById(
+    "btnRepetir"
+).addEventListener(
+    "click",
+    repetirFotografia
+);
+
+document.getElementById(
+    "btnConfirmar"
+).addEventListener(
+    "click",
+    confirmarFotografia
+);
+
+document.getElementById(
+    "btnDescargar"
+).addEventListener(
+    "click",
+    descargarRecortes
+);
+
+document.getElementById(
+    "btnNuevaInspeccion"
+).addEventListener(
+    "click",
+    nuevaInspeccion
+);
+
+window.addEventListener("pagehide", detenerCamara);
+
+
+// ===============================
+// INICIAR APLICACION
+// ===============================
+
+configurarPaso();

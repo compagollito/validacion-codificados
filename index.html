@@ -1,217 +1,142 @@
+
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
 
-    <title>Validación de codificados</title>
+    <title>Validación de Codificados</title>
 
     <link rel="stylesheet" href="styles.css">
-
-    <!-- Motor OCR -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer>
-    </script>
-
-    <script src="script.js" defer></script>
 </head>
 
 <body>
-    <div class="app">
 
-        <header class="encabezado">
-            <h1>Validación de codificados</h1>
-            <p>Prototipo experimental · Unidad y corrugado</p>
+    <main class="contenedor">
+
+        <header>
+            <h1>Inspección de Codificados</h1>
+            <p>Captura guiada de unidad y corrugado</p>
         </header>
 
-        <main>
+        <section class="tarjeta">
 
-            <!-- PANTALLA 1: LINEAS -->
-            <section id="inicio" class="pantalla activa">
-                <div class="tarjeta">
-                    <h2>Selecciona una línea</h2>
-                    <div id="lineas" class="acciones"></div>
+            <div class="progreso">
+                <span id="pasoTexto">Paso 1 de 2</span>
+                <span id="tipoObjeto">UNIDAD</span>
+            </div>
+
+            <h2 id="tituloCaptura">
+                Captura el código de la unidad
+            </h2>
+
+            <p id="instrucciones">
+                Coloca el código dentro del recuadro.
+            </p>
+
+            <div id="camaraContenedor"
+                 class="camara-contenedor">
+
+                <video
+                    id="video"
+                    autoplay
+                    playsinline
+                    muted>
+                </video>
+
+                <div id="recuadro"
+                     class="recuadro unidad">
                 </div>
-            </section>
 
-            <!-- PANTALLA 2: OPCIONES -->
-            <section id="opciones" class="pantalla">
-                <div class="tarjeta">
+            </div>
 
-                    <button class="volver" data-volver="inicio">
-                        ← Volver
-                    </button>
+            <div id="vistaPrevia"
+                 class="vista-previa oculto">
 
-                    <h2 id="linea-titulo"></h2>
+                <h3>Revisa la fotografía</h3>
 
-                    <div class="acciones">
-                        <button id="ir-validar">
-                            Validar producto
-                        </button>
+                <img id="imagenCapturada"
+                     alt="Código capturado">
 
-                        <button id="ir-historial">
-                            Ver historial
-                        </button>
+                <p>
+                    Verifica que el código esté completo
+                    y sea legible.
+                </p>
+
+            </div>
+
+            <div id="controlesCamara"
+                 class="botones">
+
+                <button id="btnCapturar">
+                    Tomar fotografía
+                </button>
+
+            </div>
+
+            <div id="controlesRevision"
+                 class="botones oculto">
+
+                <button id="btnRepetir"
+                        class="secundario">
+                    Repetir
+                </button>
+
+                <button id="btnConfirmar">
+                    Confirmar
+                </button>
+
+            </div>
+
+            <div id="resultadoFinal"
+                 class="resultado oculto">
+
+                <h2>¡Capturas completadas!</h2>
+
+                <p>
+                    Se capturaron correctamente
+                    la unidad y el corrugado.
+                </p>
+
+                <div class="resultados-imagenes">
+
+                    <div>
+                        <h3>Unidad</h3>
+                        <img id="resultadoUnidad"
+                             alt="Código de unidad">
                     </div>
 
-                </div>
-            </section>
-
-            <!-- PANTALLA 3: CAMARA GUIADA -->
-            <section id="validar" class="pantalla">
-                <div class="tarjeta">
-
-                    <button class="volver" data-volver="opciones">
-                        ← Volver
-                    </button>
-
-                    <h2 id="etapa-titulo">
-                        Fotografía 1 de 2 · Unidad
-                    </h2>
-
-                    <p id="etapa-ayuda">
-                        Coloca el codificado dentro del recuadro.
-                    </p>
-
-
-                    <div class="camara-contenedor" id="contenedor-camara">
-
-                        <video id="camara" autoplay playsinline muted>
-                        </video>
-
-                        <img id="foto-previa" class="oculto" alt="Recorte del codificado capturado">
-
-                        <div class="marco" id="marco-codificado"></div>
-
-                    </div>
-
-
-                    <!-- INDICADORES EN TIEMPO REAL -->
-                    <div class="indicadores">
-
-                        <p id="luz">
-                            Luz: analizando...
-                        </p>
-
-                        <p id="nitidez">
-                            Nitidez: analizando...
-                        </p>
-
-                        <p id="estabilidad">
-                            Estabilidad: analizando...
-                        </p>
-
-                    </div>
-
-                    <p id="mensaje-camara" class="mensaje" role="status"></p>
-
-                    <!-- BOTONES -->
-                    <div class="acciones">
-
-                        <button id="capturar" disabled>
-                            Capturar fotografía
-                        </button>
-
-                        <button id="repetir" class="secundario oculto">
-                            Tomar otra fotografía
-                        </button>
-
-                        <button id="siguiente" class="oculto">
-                            Continuar con corrugado
-                        </button>
-
-                        <button id="ver-resumen" class="oculto">
-                            Ver ambas lecturas
-                        </button>
-
-                    </div>
-
-                    <!-- RECONOCIMIENTO OCR -->
-                    <div id="panel-ocr" class="panel-ocr oculto">
-
-                        <h3>Reconocimiento OCR</h3>
-
-                        <p id="estado-ocr" role="status"></p>
-
-                        <label for="texto-ocr">
-                            Texto reconocido (sin validar):
-                        </label>
-
-                        <p class="etiqueta-recorte">
-                            Región enviada al OCR:
-                        </p>
-
-                        <img id="recorte-ocr" class="recorte-ocr" alt="Región recortada y procesada para OCR">
-
-                        <textarea id="texto-ocr" rows="7" readonly>
-                        </textarea>
-
+                    <div>
+                        <h3>Corrugado</h3>
+                        <img id="resultadoCorrugado"
+                             alt="Código de corrugado">
                     </div>
 
                 </div>
-            </section>
 
-            <!-- PANTALLA 4: RESULTADOS -->
-            <section id="resumen" class="pantalla">
-                <div class="tarjeta">
+                <button id="btnDescargar">
+                    Descargar recortes
+                </button>
 
-                    <button class="volver" data-volver="opciones">
-                        ← Volver
-                    </button>
+                <button id="btnNuevaInspeccion"
+                        class="secundario">
+                    Nueva inspección
+                </button>
 
-                    <h2>Resultados de reconocimiento</h2>
+            </div>
 
-                    <p class="aviso">
-                        Lecturas pendientes de validación contra Excel.
-                        No representan una aprobación del producto.
-                    </p>
+            <p id="mensajeEstado"
+               class="mensaje-estado">
+            </p>
 
-                    <h3>Codificado de unidad</h3>
-                    <pre id="res-unidad"></pre>
+        </section>
 
-                    <h3>Codificado de corrugado</h3>
-                    <pre id="res-corrugado"></pre>
+    </main>
 
-                    <div class="acciones">
+    <canvas id="canvas" class="oculto"></canvas>
 
-                        <button id="guardar">
-                            Guardar prueba en historial
-                        </button>
+    <script src="script.js"></script>
 
-                        <button id="reiniciar" class="secundario">
-                            Nueva inspección
-                        </button>
-
-                    </div>
-
-                    <p id="estado-guardado" role="status"></p>
-
-                </div>
-            </section>
-
-            <!-- PANTALLA 5: HISTORIAL -->
-            <section id="historial" class="pantalla">
-                <div class="tarjeta">
-
-                    <button class="volver" data-volver="opciones">
-                        ← Volver
-                    </button>
-
-                    <h2 id="historial-titulo">Historial</h2>
-
-                    <div id="registros"></div>
-
-                </div>
-            </section>
-
-        </main>
-
-        <footer>
-            Prototipo experimental sin conexión a SharePoint.
-            No utilizar para liberar o rechazar producción.
-        </footer>
-
-    </div>
 </body>
-
 </html>
